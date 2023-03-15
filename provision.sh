@@ -8,71 +8,56 @@ fi
 
 printf "\nInitializing mysql.sh Version ($VER)...\n\n"
 
-# NOTE: EPEL repo must be enabled in base.sh script per missing dependency in Percona repo:
-# https://bugs.launchpad.net/percona-xtrabackup/+bug/1526636
-if [[ ! -e /etc/yum.repos.d/epel.repo ]]; then yum -y install http://mirror.pnl.gov/epel/6/x86_64/epel-release-6-8.noarch.rpm; fi
+# Install EPEL repo
+if [[ ! -e /etc/yum.repos.d/epel.repo ]]; then
+    yum -y install http://mirror.umkc.edu/fedora/epel/6/i386/epel-release-6-8.noarch.rpm
+		yum update
+fi
+
+
 
 # Install Percona MySQL Repo
-yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm -y
+yum install http://repo.percona.com/yum/percona-release-latest.noarch.rpm -y
 # Install Percona MySQL Server, server headers, toolkit and Xtrabackup
 yum install Percona-Server-server-$VER Percona-Server-devel-$VER percona-toolkit percona-xtrabackup -y
 
 # Install LDAP packages
 yum install openldap openldap-servers openldap-clients -y
 
+# Configure PHP to use LDAP
+yum install php-ldap -y
+sed -i 's,;extension=ldap.so,extension=ldap.so,g' /etc/php.ini
 
-# Create mysql dir
-if [[ ! -d /storage/db ]]; then mkdir -p /storage/db && ln -s /storage/db/ /db; fi
-ln -s /var/lib/mysql/ /storage/db/mysql > /dev/null 2>&1
-chown -R mysql:mysql /db/mysql
+# Install DHCP server
+yum install dhcp -y
 
-# Start MySQL Service
-if pidof systemd > /dev/null ; then
-	systemctl enable mysqld
-	systemctl start mysqld
-else
-	chkconfig --add mysql
-	service mysql start
-fi
+# Configure DHCP server
+cat <<EOF > /etc/dhcp/dhcpd.conf
+subnet 192.168.50.0 netmask 255.255.255.0 {
+  range 192.168.50.10 192.168.50.100;
+  option routers 192.168.50.1;
+  option domain-name "example.com";
+  option domain-name-servers 8.8.8.8, 8.8.4.4;
+}
+EOF
 
-# Start LDAP Service
-if pidof systemd > /dev/null ; then
-	systemctl enable slapd
-	systemctl start slapd
-else
-	chkconfig --add slapd
-	service slapd start
-fi
+# Enable and start DHCP server
+systemctl enable dhcpd.service
+systemctl start dhcpd.service
 
-if ! grep password ~/.my.cnf > /dev/null 2>&1
-then
-	printf "Configure desired mysql_secure_installation defaults..."
-	# This is not about local security, it about making sure root can't get attacked remotly easily by guessing no password.
-	# The password is always initially set here and then populated in the ~/.my.cnf file
-	mysql --user=root <<- EOF
-	UPDATE mysql.user SET Password=PASSWORD('Secret1') WHERE User='root';
-	DELETE FROM mysql.user WHERE User='';
-	DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
-	DROP DATABASE IF EXISTS test;
-	DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
-	FLUSH PRIVILEGES;
-	EOF
+# Install Asterisk
+yum install -y epel-release
+yum install -y asterisk
 
-	# ~/.my.cnf should never be there already when this script runs - it always initializes the mysql install
-	printf "\nSetting up .my.cnf..."
-	printf "
-	[client]
-	password=Secret1" >> ~/.my.cnf
+# Set up Asterisk to run at startup
+systemctl enable asterisk
+systemctl start asterisk
 
-	printf "
-	[client]
-	password=Secret1" >> /home/vagrant/.my.cnf
-
-	printf "Done.\n"
-fi
-
-
+# Install Apache HTTP server
 yum install -y httpd
-sudo systemctl start  httpd.service
+systemctl enable httpd.service
+systemctl start httpd.service
 
-echo "You should be able to reach http://localhost:8080/ now   (unless the port was redirected.)"
+echo "You should be able to reach http://localhost:8080 now (unless the port was redirected.)"
+echo "A private network is also set up with a DHCP server at 192.168.50.1 providing network settings."
+echo "Asterisk is installed and set up to run at startup."

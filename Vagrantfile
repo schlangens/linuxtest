@@ -18,20 +18,21 @@ Vagrant.configure(2) do |config|
     config.cache.scope = :box
     config.cache.enable :yum
   end
-  #config.vm.boot_timeout
+  config.vm.boot_timeout = 600
   #config.vm.network "forwarded_port", guest: 80, host: 8080, auto_correct: true
   config.vm.network "forwarded_port", guest: 80, host: 8080, auto_correct: true
   config.vm.provision "shell", path: "provision.sh"
   
   # Configure network settings
-  # config.vm.network "private_network", ip: "192.168.33.10"
+  config.vm.network "private_network", ip: "192.168.50.1"
   # config.vm.network "public_network"
 
-  #config.vm.provider "virtualbox" do |vb|
+  config.vm.provider "virtualbox" do |vb|
   # Display the VirtualBox GUI when booting the machine
   #  vb.gui = true
+
   # Customize the amount of memory or cpus on the VM:
-  #  vb.memory = "1024"
-  #  vb.cpus = "2"
-  #end
+    vb.memory = "1024"
+    vb.cpus = "2"
+  end
 end
