@@ -17,6 +17,10 @@ yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percon
 # Install Percona MySQL Server, server headers, toolkit and Xtrabackup
 yum install Percona-Server-server-$VER Percona-Server-devel-$VER percona-toolkit percona-xtrabackup -y
 
+# Install LDAP packages
+yum install openldap openldap-servers openldap-clients -y
+
+
 # Create mysql dir
 if [[ ! -d /storage/db ]]; then mkdir -p /storage/db && ln -s /storage/db/ /db; fi
 ln -s /var/lib/mysql/ /storage/db/mysql > /dev/null 2>&1
@@ -31,6 +35,14 @@ else
 	service mysql start
 fi
 
+# Start LDAP Service
+if pidof systemd > /dev/null ; then
+	systemctl enable slapd
+	systemctl start slapd
+else
+	chkconfig --add slapd
+	service slapd start
+fi
 
 if ! grep password ~/.my.cnf > /dev/null 2>&1
 then
